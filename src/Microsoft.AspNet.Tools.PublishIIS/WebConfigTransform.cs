@@ -8,14 +8,26 @@ namespace Microsoft.AspNet.Tools.PublishIIS
     {
         public static XDocument Transform(XDocument webConfig, string appName)
         {
+            const string HandlersElementName = "handlers";
+            const string httpPlatformElementName = "httpPlatform";
+
             webConfig = webConfig == null || webConfig.Root.Name.LocalName != "configuration"
                 ? XDocument.Parse("<configuration />")
                 : webConfig;
 
             var webServerSection = GetOrCreateChild(webConfig.Root, "system.webServer");
 
-            TransformHandlers(GetOrCreateChild(webServerSection, "handlers"));
-            TransformHttpPlatform(GetOrCreateChild(webServerSection, "httpPlatform"), appName);
+            TransformHandlers(GetOrCreateChild(webServerSection, HandlersElementName));
+            TransformHttpPlatform(GetOrCreateChild(webServerSection, httpPlatformElementName), appName);
+
+            // make sure that the httpPlatform element is after handlers element
+            var httpPlatformElement = webServerSection.Element(HandlersElementName)
+                .ElementsBeforeSelf(httpPlatformElementName).SingleOrDefault();
+            if (httpPlatformElement != null)
+            {
+                httpPlatformElement.Remove();
+                webServerSection.Element(HandlersElementName).AddAfterSelf(httpPlatformElement);
+            }
 
             return webConfig;
         }
@@ -33,18 +45,17 @@ namespace Microsoft.AspNet.Tools.PublishIIS
             }
 
             platformHandlerElement.SetAttributeValue("name", "httpPlatformHandler");
-            platformHandlerElement.SetAttributeValue("path", (string)platformHandlerElement.Attribute("path") ?? "*");
-            platformHandlerElement.SetAttributeValue("verb", (string)platformHandlerElement.Attribute("verb") ?? "*");
-            platformHandlerElement.SetAttributeValue("modules", "httpPlatformHandler");
-            platformHandlerElement.SetAttributeValue("resourceType", "Unspecified");
+            SetAttributeValueIfEmpty(platformHandlerElement, "path", "*");
+            SetAttributeValueIfEmpty(platformHandlerElement, "verb", "*");
+            SetAttributeValueIfEmpty(platformHandlerElement, "modules", "httpPlatformHandler");
+            SetAttributeValueIfEmpty(platformHandlerElement, "resourceType", "Unspecified");
         }
 
         private static void TransformHttpPlatform(XElement httpPlatformElement, string appName)
         {
-            // TODO: executable name should be passed as a param
-            httpPlatformElement.SetAttributeValue("processPath", @"..\approot\${appName}");
+            httpPlatformElement.SetAttributeValue("processPath", $@"..\wwwroot\{appName}");
             SetAttributeValueIfEmpty(httpPlatformElement, "stdoutLogEnabled", "false");
-            SetAttributeValueIfEmpty(httpPlatformElement, "verstartupTimeLimit", "3600");
+            SetAttributeValueIfEmpty(httpPlatformElement, "startupTimeLimit", "3600");
         }
 
         private static XElement GetOrCreateChild(XElement parent, string childName)
