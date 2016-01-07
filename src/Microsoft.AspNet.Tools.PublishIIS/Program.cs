@@ -10,29 +10,30 @@ namespace Microsoft.AspNet.Tools.PublishIIS
     {
         public static int Main(string[] args)
         {
-            // DebugHelper.HandleDebugSwitch(ref args);
-
             var app = new CommandLineApplication
             {
-                Name = "dotnet publish iis",
+                Name = "dotnet(????) publish-iis",
                 FullName = "Asp.Net IIS Publisher",
                 Description = "IIS Publisher for the Asp.Net web applications",
             };
             app.HelpOption("-h|--help");
 
             var publishFolderOption = app.Option("--publish-folder", "The path to the publish output folder", CommandOptionType.SingleValue);
-            var appNameOption = app.Option("--application", "The name of the application", CommandOptionType.SingleValue);
+            var appNameOption = app.Option("--application-name", "The name of the application", CommandOptionType.SingleValue);
 
             app.OnExecute(() =>
+            {
+                var publishFolder = publishFolderOption.Value();
+                var appName = appNameOption.Value();
+
+                if (publishFolder == null || appName == null)
                 {
-                var projectFolder = publishFolderOption.Value();
-                if (string.IsNullOrEmpty(projectFolder))
-                {
-                    projectFolder = Directory.GetCurrentDirectory();
+                    app.ShowHelp();
+                    return 2;
                 }
 
                 XDocument webConfigXml = null;
-                var webConfigPath = Path.Combine(projectFolder, "web.config");
+                var webConfigPath = Path.Combine(publishFolder, "wwwroot", "web.config");
                 if (File.Exists(webConfigPath))
                 {
                     try
@@ -42,11 +43,15 @@ namespace Microsoft.AspNet.Tools.PublishIIS
                     catch (XmlException) { }
                 }
 
-                WebConfigTransform.Transform(webConfigXml, appNameOption.Value());
+                var transformedConfig = WebConfigTransform.Transform(webConfigXml, appName);
+
+                using (var f = new FileStream(webConfigPath, FileMode.Create))
+                {
+                    transformedConfig.Save(f);
+                }
 
                 return 0;
             });
-
 
             try
             {
